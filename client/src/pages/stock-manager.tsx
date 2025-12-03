@@ -47,7 +47,9 @@ export default function StockManager() {
 
   const updateMutation = useMutation({
     mutationFn: async (item: StockItem) => {
-      const response = await apiRequest("PUT", `/api/stock/${item.id}`, item);
+      // Exclude lastUpdated as it's auto-set by the backend
+      const { lastUpdated, ...updateData } = item;
+      const response = await apiRequest("PUT", `/api/stock/${item.id}`, updateData);
       return response.json();
     },
     onSuccess: (updatedItem: StockItem) => {
