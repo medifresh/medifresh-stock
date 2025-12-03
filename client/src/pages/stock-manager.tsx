@@ -172,12 +172,11 @@ export default function StockManager() {
   }, [importMutation, parsedItems]);
 
   const handleExportCSV = useCallback(() => {
-    const headers = ["Référence", "Article", "Stock", "Unité", "Arrivage"];
+    const headers = ["Référence", "Article", "Stock", "Arrivage"];
     const rows = stockItems.map((item) => [
       item.reference,
       item.name,
       item.currentStock,
-      item.unit,
       item.pendingArrival,
     ]);
 

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import type { StockItem, StockStatus } from "@shared/schema";
-import { getStockStatus } from "@shared/schema";
+import { getStockStatus, getMissingQuantity } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -177,9 +177,9 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
               <TableHead className="font-semibold w-28">Référence</TableHead>
               <TableHead className="font-semibold min-w-[200px]">Article</TableHead>
               <TableHead className="font-semibold w-24 text-right">Stock</TableHead>
-              <TableHead className="font-semibold w-20 text-center">Unité</TableHead>
               <TableHead className="font-semibold w-28 text-right">Arrivage</TableHead>
               <TableHead className="font-semibold w-24 text-center">Statut</TableHead>
+              <TableHead className="font-semibold w-24 text-right">Manquant</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -187,6 +187,7 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
               const status = getStockStatus(item);
               const config = statusConfig[status];
               const StatusIcon = config.icon;
+              const missing = getMissingQuantity(item);
 
               return (
                 <TableRow
@@ -221,9 +222,6 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                         status === "low" && "text-amber-600 dark:text-amber-400 font-medium"
                       )}
                     />
-                  </TableCell>
-                  <TableCell className="text-center text-muted-foreground text-sm">
-                    {item.unit}
                   </TableCell>
                   <TableCell className="text-right">
                     {item.pendingArrival > 0 ? (
@@ -260,6 +258,15 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                         {status === "high" && "Stock élevé"}
                       </TooltipContent>
                     </Tooltip>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {missing > 0 ? (
+                      <span className="font-mono font-semibold text-destructive" data-testid={`text-missing-${item.id}`}>
+                        {missing}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );

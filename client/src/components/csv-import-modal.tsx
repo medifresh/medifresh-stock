@@ -85,7 +85,6 @@ export function CSVImportModal({
                   <TableHead className="font-semibold">Référence</TableHead>
                   <TableHead className="font-semibold">Article</TableHead>
                   <TableHead className="font-semibold text-right">Stock</TableHead>
-                  <TableHead className="font-semibold text-center">Unité</TableHead>
                   <TableHead className="font-semibold text-right">Arrivage</TableHead>
                 </TableRow>
               </TableHeader>
@@ -105,7 +104,6 @@ export function CSVImportModal({
                     <TableCell className="font-mono text-sm">{item.reference || "-"}</TableCell>
                     <TableCell className="font-medium">{item.name || "-"}</TableCell>
                     <TableCell className="text-right font-mono">{item.currentStock}</TableCell>
-                    <TableCell className="text-center">{item.unit || "-"}</TableCell>
                     <TableCell className="text-right font-mono">{item.pendingArrival || "-"}</TableCell>
                   </TableRow>
                 ))}
