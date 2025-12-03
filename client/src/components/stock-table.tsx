@@ -176,8 +176,9 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
             <TableRow className="bg-muted/50">
               <TableHead className="font-semibold w-28">Référence</TableHead>
               <TableHead className="font-semibold min-w-[200px]">Article</TableHead>
-              <TableHead className="font-semibold w-24 text-right">Stock</TableHead>
-              <TableHead className="font-semibold w-28 text-right">Arrivage</TableHead>
+              <TableHead className="font-semibold w-20 text-right">Stock</TableHead>
+              <TableHead className="font-semibold w-24 text-right">Arrivage</TableHead>
+              <TableHead className="font-semibold w-20 text-right">Seuil</TableHead>
               <TableHead className="font-semibold w-24 text-center">Statut</TableHead>
               <TableHead className="font-semibold w-24 text-right">Manquant</TableHead>
             </TableRow>
@@ -238,6 +239,15 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                     ) : (
                       <span className="text-muted-foreground px-2">-</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <EditableCell
+                      value={item.threshold || 0}
+                      onSave={(val) => handleUpdateField(item, "threshold", val)}
+                      type="number"
+                      align="right"
+                      className="text-muted-foreground"
+                    />
                   </TableCell>
                   <TableCell className="text-center">
                     <Tooltip>

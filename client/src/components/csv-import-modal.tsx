@@ -20,6 +20,7 @@ interface ParsedItem {
   name: string;
   currentStock: number;
   pendingArrival: number;
+  threshold: number;
   unit: string;
   location: string;
   valid: boolean;
@@ -86,6 +87,7 @@ export function CSVImportModal({
                   <TableHead className="font-semibold">Article</TableHead>
                   <TableHead className="font-semibold text-right">Stock</TableHead>
                   <TableHead className="font-semibold text-right">Arrivage</TableHead>
+                  <TableHead className="font-semibold text-right">Seuil</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -105,6 +107,7 @@ export function CSVImportModal({
                     <TableCell className="font-medium">{item.name || "-"}</TableCell>
                     <TableCell className="text-right font-mono">{item.currentStock}</TableCell>
                     <TableCell className="text-right font-mono">{item.pendingArrival || "-"}</TableCell>
+                    <TableCell className="text-right font-mono">{item.threshold || "-"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -144,6 +147,7 @@ export function parseCSV(content: string): ParsedItem[] {
   const nameIndex = headers.findIndex((h) => h.includes("nom") || h.includes("article") || h.includes("désignation"));
   const stockIndex = headers.findIndex((h) => h.includes("stock") || h.includes("quantité") || h.includes("qte"));
   const arrivalIndex = headers.findIndex((h) => h.includes("arrivage") || h.includes("commande") || h.includes("attente"));
+  const thresholdIndex = headers.findIndex((h) => h.includes("seuil") || h.includes("minimum") || h.includes("min"));
   const unitIndex = headers.findIndex((h) => h.includes("unité") || h.includes("unite"));
   const locationIndex = headers.findIndex((h) => h.includes("emplacement") || h.includes("location") || h.includes("lieu"));
 
@@ -154,6 +158,7 @@ export function parseCSV(content: string): ParsedItem[] {
     const name = nameIndex >= 0 ? values[nameIndex] || "" : "";
     const currentStock = stockIndex >= 0 ? parseInt(values[stockIndex], 10) || 0 : 0;
     const pendingArrival = arrivalIndex >= 0 ? parseInt(values[arrivalIndex], 10) || 0 : 0;
+    const threshold = thresholdIndex >= 0 ? parseInt(values[thresholdIndex], 10) || 0 : 0;
     const unit = unitIndex >= 0 ? values[unitIndex] || "unités" : "unités";
     const location = locationIndex >= 0 ? values[locationIndex] || "" : "";
 
@@ -165,6 +170,7 @@ export function parseCSV(content: string): ParsedItem[] {
       name,
       currentStock,
       pendingArrival,
+      threshold,
       unit,
       location,
       valid,

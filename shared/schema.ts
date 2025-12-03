@@ -7,6 +7,7 @@ export const stockItemSchema = z.object({
   name: z.string().min(1, "Le nom est requis"),
   currentStock: z.number().min(0, "Le stock ne peut pas être négatif"),
   pendingArrival: z.number().min(0, "L'arrivage ne peut pas être négatif").default(0),
+  threshold: z.number().min(0, "Le seuil ne peut pas être négatif").default(0),
   unit: z.string().default("unités"),
   location: z.string().optional(),
   lastUpdated: z.string(),
@@ -52,35 +53,41 @@ export const syncMessageSchema = z.object({
 
 export type SyncMessage = z.infer<typeof syncMessageSchema>;
 
-// Stock status helpers based on current stock level
+// Stock status helpers based on current stock level vs threshold
 export type StockStatus = "critical" | "low" | "adequate" | "high";
 
 export function getStockStatus(item: StockItem): StockStatus {
-  if (item.currentStock <= 0) return "critical";
-  if (item.currentStock <= 10) return "low";
-  if (item.currentStock <= 50) return "adequate";
+  const available = item.currentStock + (item.pendingArrival || 0);
+  const threshold = item.threshold || 0;
+  
+  if (available <= 0) return "critical";
+  if (available < threshold) return "low";
+  if (available <= threshold * 1.5) return "adequate";
   return "high";
 }
 
+// Calculate missing quantity: Seuil - (Stock + Arrivage)
 export function getMissingQuantity(item: StockItem): number {
-  return Math.max(0, -item.currentStock);
+  const available = item.currentStock + (item.pendingArrival || 0);
+  const threshold = item.threshold || 0;
+  return Math.max(0, threshold - available);
 }
 
 // Initial stock data for medical supplies
 export const initialStockData: StockItem[] = [
-  { id: "1", reference: "GL-100", name: "Gants latex (boîte 100)", currentStock: 45, pendingArrival: 20, unit: "boîtes", location: "Armoire A1", lastUpdated: new Date().toISOString() },
-  { id: "2", reference: "MC-50", name: "Masques chirurgicaux (boîte 50)", currentStock: 120, pendingArrival: 0, unit: "boîtes", location: "Armoire A1", lastUpdated: new Date().toISOString() },
-  { id: "3", reference: "SER-5ML", name: "Seringues 5ml", currentStock: 8, pendingArrival: 100, unit: "unités", location: "Armoire B2", lastUpdated: new Date().toISOString() },
-  { id: "4", reference: "AIG-21G", name: "Aiguilles 21G", currentStock: 150, pendingArrival: 50, unit: "unités", location: "Armoire B2", lastUpdated: new Date().toISOString() },
-  { id: "5", reference: "CPS-10", name: "Compresses stériles 10x10", currentStock: 300, pendingArrival: 0, unit: "unités", location: "Armoire C1", lastUpdated: new Date().toISOString() },
-  { id: "6", reference: "SPA-5M", name: "Sparadrap 5m", currentStock: 25, pendingArrival: 10, unit: "rouleaux", location: "Armoire C1", lastUpdated: new Date().toISOString() },
-  { id: "7", reference: "BET-500", name: "Désinfectant Bétadine 500ml", currentStock: 18, pendingArrival: 15, unit: "flacons", location: "Armoire D1", lastUpdated: new Date().toISOString() },
-  { id: "8", reference: "ALC-1L", name: "Alcool 70° 1L", currentStock: 35, pendingArrival: 0, unit: "flacons", location: "Armoire D1", lastUpdated: new Date().toISOString() },
-  { id: "9", reference: "THM-DIG", name: "Thermomètres digitaux", currentStock: 12, pendingArrival: 5, unit: "unités", location: "Tiroir E1", lastUpdated: new Date().toISOString() },
-  { id: "10", reference: "TEN-01", name: "Tensiomètres", currentStock: 5, pendingArrival: 3, unit: "unités", location: "Tiroir E1", lastUpdated: new Date().toISOString() },
-  { id: "11", reference: "PAR-500", name: "Paracétamol 500mg (boîte 20)", currentStock: 80, pendingArrival: 0, unit: "boîtes", location: "Pharmacie F1", lastUpdated: new Date().toISOString() },
-  { id: "12", reference: "IBU-400", name: "Ibuprofène 400mg (boîte 20)", currentStock: 65, pendingArrival: 20, unit: "boîtes", location: "Pharmacie F1", lastUpdated: new Date().toISOString() },
-  { id: "13", reference: "SER-PHY", name: "Sérum physiologique 500ml", currentStock: 200, pendingArrival: 0, unit: "poches", location: "Armoire G1", lastUpdated: new Date().toISOString() },
-  { id: "14", reference: "CAT-20G", name: "Cathéters IV 20G", currentStock: 45, pendingArrival: 60, unit: "unités", location: "Armoire G1", lastUpdated: new Date().toISOString() },
-  { id: "15", reference: "PAN-ADH", name: "Pansements adhésifs (boîte 100)", currentStock: 40, pendingArrival: 0, unit: "boîtes", location: "Armoire C1", lastUpdated: new Date().toISOString() },
+  { id: "1", reference: "GL-100", name: "Gants latex (boîte 100)", currentStock: 45, pendingArrival: 20, threshold: 50, unit: "boîtes", location: "Armoire A1", lastUpdated: new Date().toISOString() },
+  { id: "2", reference: "MC-50", name: "Masques chirurgicaux (boîte 50)", currentStock: 120, pendingArrival: 0, threshold: 100, unit: "boîtes", location: "Armoire A1", lastUpdated: new Date().toISOString() },
+  { id: "3", reference: "SER-5ML", name: "Seringues 5ml", currentStock: 8, pendingArrival: 100, threshold: 150, unit: "unités", location: "Armoire B2", lastUpdated: new Date().toISOString() },
+  { id: "4", reference: "AIG-21G", name: "Aiguilles 21G", currentStock: 150, pendingArrival: 50, threshold: 200, unit: "unités", location: "Armoire B2", lastUpdated: new Date().toISOString() },
+  { id: "5", reference: "CPS-10", name: "Compresses stériles 10x10", currentStock: 300, pendingArrival: 0, threshold: 200, unit: "unités", location: "Armoire C1", lastUpdated: new Date().toISOString() },
+  { id: "6", reference: "SPA-5M", name: "Sparadrap 5m", currentStock: 25, pendingArrival: 10, threshold: 30, unit: "rouleaux", location: "Armoire C1", lastUpdated: new Date().toISOString() },
+  { id: "7", reference: "BET-500", name: "Désinfectant Bétadine 500ml", currentStock: 18, pendingArrival: 15, threshold: 25, unit: "flacons", location: "Armoire D1", lastUpdated: new Date().toISOString() },
+  { id: "8", reference: "ALC-1L", name: "Alcool 70° 1L", currentStock: 35, pendingArrival: 0, threshold: 30, unit: "flacons", location: "Armoire D1", lastUpdated: new Date().toISOString() },
+  { id: "9", reference: "THM-DIG", name: "Thermomètres digitaux", currentStock: 12, pendingArrival: 5, threshold: 10, unit: "unités", location: "Tiroir E1", lastUpdated: new Date().toISOString() },
+  { id: "10", reference: "TEN-01", name: "Tensiomètres", currentStock: 5, pendingArrival: 3, threshold: 8, unit: "unités", location: "Tiroir E1", lastUpdated: new Date().toISOString() },
+  { id: "11", reference: "PAR-500", name: "Paracétamol 500mg (boîte 20)", currentStock: 80, pendingArrival: 0, threshold: 50, unit: "boîtes", location: "Pharmacie F1", lastUpdated: new Date().toISOString() },
+  { id: "12", reference: "IBU-400", name: "Ibuprofène 400mg (boîte 20)", currentStock: 65, pendingArrival: 20, threshold: 50, unit: "boîtes", location: "Pharmacie F1", lastUpdated: new Date().toISOString() },
+  { id: "13", reference: "SER-PHY", name: "Sérum physiologique 500ml", currentStock: 200, pendingArrival: 0, threshold: 150, unit: "poches", location: "Armoire G1", lastUpdated: new Date().toISOString() },
+  { id: "14", reference: "CAT-20G", name: "Cathéters IV 20G", currentStock: 45, pendingArrival: 60, threshold: 100, unit: "unités", location: "Armoire G1", lastUpdated: new Date().toISOString() },
+  { id: "15", reference: "PAN-ADH", name: "Pansements adhésifs (boîte 100)", currentStock: 40, pendingArrival: 0, threshold: 30, unit: "boîtes", location: "Armoire C1", lastUpdated: new Date().toISOString() },
 ];
