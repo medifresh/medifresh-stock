@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { stockItemSchema, updateStockItemSchema } from "@shared/schema";
+import { insertStockItemSchema, updateStockItemSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 
@@ -101,7 +101,11 @@ export async function registerRoutes(
   // Get single stock item
   app.get("/api/stock/:id", async (req, res) => {
     try {
-      const item = await storage.getStockById(req.params.id);
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID invalide" });
+      }
+      const item = await storage.getStockById(id);
       if (!item) {
         return res.status(404).json({ error: "Article non trouvé" });
       }
@@ -115,7 +119,7 @@ export async function registerRoutes(
   // Create new stock item
   app.post("/api/stock", async (req, res) => {
     try {
-      const validatedData = stockItemSchema.omit({ id: true, lastUpdated: true }).parse(req.body);
+      const validatedData = insertStockItemSchema.parse(req.body);
       const newItem = await storage.createStock(validatedData);
       
       // Broadcast to all clients
@@ -138,7 +142,11 @@ export async function registerRoutes(
   // Update stock item
   app.put("/api/stock/:id", async (req, res) => {
     try {
-      const updateData = { ...req.body, id: req.params.id };
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID invalide" });
+      }
+      const updateData = { ...req.body, id };
       const validatedData = updateStockItemSchema.parse(updateData);
       const updatedItem = await storage.updateStock(validatedData);
       
@@ -166,7 +174,11 @@ export async function registerRoutes(
   // Delete stock item
   app.delete("/api/stock/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteStock(req.params.id);
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID invalide" });
+      }
+      const deleted = await storage.deleteStock(id);
       if (!deleted) {
         return res.status(404).json({ error: "Article non trouvé" });
       }
@@ -174,7 +186,7 @@ export async function registerRoutes(
       // Broadcast to all clients
       broadcast({
         type: "stock_delete",
-        payload: { id: req.params.id },
+        payload: { id },
         timestamp: new Date().toISOString(),
       });
       
@@ -193,7 +205,13 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Données de réception invalides" });
       }
       
-      const updatedItems = await storage.applyArrivals(arrivals);
+      // Convert string IDs to numbers if needed
+      const numericArrivals = arrivals.map((a: any) => ({
+        itemId: typeof a.itemId === 'string' ? parseInt(a.itemId, 10) : a.itemId,
+        quantity: a.quantity,
+      }));
+      
+      const updatedItems = await storage.applyArrivals(numericArrivals);
       
       // Broadcast to all clients
       broadcast({

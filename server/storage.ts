@@ -1,81 +1,70 @@
-import type { StockItem, InsertStockItem, UpdateStockItem } from "@shared/schema";
-import { initialStockData } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { stockItems, type StockItem, type InsertStockItem, type UpdateStockItem } from "@shared/schema";
 
 export interface IStorage {
   getAllStock(): Promise<StockItem[]>;
-  getStockById(id: string): Promise<StockItem | undefined>;
+  getStockById(id: number): Promise<StockItem | undefined>;
   createStock(item: InsertStockItem): Promise<StockItem>;
   updateStock(item: UpdateStockItem): Promise<StockItem | undefined>;
-  deleteStock(id: string): Promise<boolean>;
-  applyArrivals(arrivals: { itemId: string; quantity: number }[]): Promise<StockItem[]>;
+  deleteStock(id: number): Promise<boolean>;
+  applyArrivals(arrivals: { itemId: number; quantity: number }[]): Promise<StockItem[]>;
   importStock(items: InsertStockItem[]): Promise<{ imported: number }>;
   getBackupData(): Promise<{ stock: StockItem[]; timestamp: string }>;
 }
 
-export class MemStorage implements IStorage {
-  private stock: Map<string, StockItem>;
-
-  constructor() {
-    this.stock = new Map();
-    // Initialize with sample medical stock data
-    initialStockData.forEach((item) => {
-      this.stock.set(item.id, item);
-    });
-  }
-
+export class DatabaseStorage implements IStorage {
   async getAllStock(): Promise<StockItem[]> {
-    return Array.from(this.stock.values()).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+    return await db.select().from(stockItems).orderBy(stockItems.name);
   }
 
-  async getStockById(id: string): Promise<StockItem | undefined> {
-    return this.stock.get(id);
+  async getStockById(id: number): Promise<StockItem | undefined> {
+    const [item] = await db.select().from(stockItems).where(eq(stockItems.id, id));
+    return item;
   }
 
   async createStock(item: InsertStockItem): Promise<StockItem> {
-    const id = randomUUID();
-    const newItem: StockItem = {
+    const [newItem] = await db.insert(stockItems).values({
       ...item,
-      id,
       pendingArrival: item.pendingArrival || 0,
       threshold: item.threshold || 0,
-      lastUpdated: new Date().toISOString(),
-    };
-    this.stock.set(id, newItem);
+      lastUpdated: new Date(),
+    }).returning();
     return newItem;
   }
 
   async updateStock(item: UpdateStockItem): Promise<StockItem | undefined> {
-    const existing = this.stock.get(item.id);
-    if (!existing) {
-      return undefined;
-    }
-    const updatedItem: StockItem = {
-      ...existing,
-      ...item,
-      lastUpdated: new Date().toISOString(),
-    };
-    this.stock.set(item.id, updatedItem);
+    const [updatedItem] = await db
+      .update(stockItems)
+      .set({
+        ...item,
+        lastUpdated: new Date(),
+      })
+      .where(eq(stockItems.id, item.id))
+      .returning();
     return updatedItem;
   }
 
-  async deleteStock(id: string): Promise<boolean> {
-    return this.stock.delete(id);
+  async deleteStock(id: number): Promise<boolean> {
+    const result = await db.delete(stockItems).where(eq(stockItems.id, id)).returning();
+    return result.length > 0;
   }
 
-  async applyArrivals(arrivals: { itemId: string; quantity: number }[]): Promise<StockItem[]> {
+  async applyArrivals(arrivals: { itemId: number; quantity: number }[]): Promise<StockItem[]> {
     const updatedItems: StockItem[] = [];
     
     for (const arrival of arrivals) {
-      const existing = this.stock.get(arrival.itemId);
+      const existing = await this.getStockById(arrival.itemId);
       if (existing) {
-        const updatedItem: StockItem = {
-          ...existing,
-          currentStock: existing.currentStock + arrival.quantity,
-          pendingArrival: Math.max(0, (existing.pendingArrival || 0) - arrival.quantity),
-          lastUpdated: new Date().toISOString(),
-        };
-        this.stock.set(arrival.itemId, updatedItem);
+        const [updatedItem] = await db
+          .update(stockItems)
+          .set({
+            currentStock: existing.currentStock + arrival.quantity,
+            pendingArrival: Math.max(0, (existing.pendingArrival || 0) - arrival.quantity),
+            lastUpdated: new Date(),
+          })
+          .where(eq(stockItems.id, arrival.itemId))
+          .returning();
         updatedItems.push(updatedItem);
       }
     }
@@ -88,34 +77,33 @@ export class MemStorage implements IStorage {
     
     for (const item of items) {
       // Check if reference already exists
-      const existingByRef = Array.from(this.stock.values()).find(
+      const allItems = await db.select().from(stockItems);
+      const existingByRef = allItems.find(
         (s) => s.reference.toLowerCase() === item.reference.toLowerCase()
       );
       
       if (existingByRef) {
         // Update existing item
-        const updatedItem: StockItem = {
-          ...existingByRef,
-          name: item.name,
-          currentStock: item.currentStock,
-          pendingArrival: item.pendingArrival || 0,
-          threshold: item.threshold || 0,
-          unit: item.unit,
-          location: item.location,
-          lastUpdated: new Date().toISOString(),
-        };
-        this.stock.set(existingByRef.id, updatedItem);
+        await db
+          .update(stockItems)
+          .set({
+            name: item.name,
+            currentStock: item.currentStock,
+            pendingArrival: item.pendingArrival || 0,
+            threshold: item.threshold || 0,
+            unit: item.unit,
+            location: item.location,
+            lastUpdated: new Date(),
+          })
+          .where(eq(stockItems.id, existingByRef.id));
       } else {
         // Create new item
-        const id = randomUUID();
-        const newItem: StockItem = {
+        await db.insert(stockItems).values({
           ...item,
-          id,
           pendingArrival: item.pendingArrival || 0,
           threshold: item.threshold || 0,
-          lastUpdated: new Date().toISOString(),
-        };
-        this.stock.set(id, newItem);
+          lastUpdated: new Date(),
+        });
       }
       imported++;
     }
@@ -131,4 +119,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

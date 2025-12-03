@@ -1,29 +1,39 @@
+import { pgTable, text, integer, timestamp, serial } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Stock Item schema
-export const stockItemSchema = z.object({
-  id: z.string(),
-  reference: z.string().min(1, "La référence est requise"),
-  name: z.string().min(1, "Le nom est requis"),
-  currentStock: z.number().min(0, "Le stock ne peut pas être négatif"),
-  pendingArrival: z.number().min(0, "L'arrivage ne peut pas être négatif").default(0),
-  threshold: z.number().min(0, "Le seuil ne peut pas être négatif").default(0),
-  unit: z.string().default("unités"),
-  location: z.string().optional(),
-  lastUpdated: z.string(),
+// Stock Items table
+export const stockItems = pgTable("stock_items", {
+  id: serial("id").primaryKey(),
+  reference: text("reference").notNull(),
+  name: text("name").notNull(),
+  currentStock: integer("current_stock").notNull().default(0),
+  pendingArrival: integer("pending_arrival").notNull().default(0),
+  threshold: integer("threshold").notNull().default(0),
+  unit: text("unit").notNull().default("unités"),
+  location: text("location"),
+  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
 });
 
-export type StockItem = z.infer<typeof stockItemSchema>;
+// Types
+export type StockItem = typeof stockItems.$inferSelect;
+export type InsertStockItem = typeof stockItems.$inferInsert;
 
-export const insertStockItemSchema = stockItemSchema.omit({ id: true, lastUpdated: true });
-export type InsertStockItem = z.infer<typeof insertStockItemSchema>;
+// Zod schemas
+export const insertStockItemSchema = createInsertSchema(stockItems).omit({ 
+  id: true, 
+  lastUpdated: true 
+});
 
-export const updateStockItemSchema = stockItemSchema.partial().required({ id: true });
+export const updateStockItemSchema = createInsertSchema(stockItems).partial().extend({
+  id: z.number(),
+});
+
 export type UpdateStockItem = z.infer<typeof updateStockItemSchema>;
 
 // Stock Arrival schema for batch updates
 export const stockArrivalSchema = z.object({
-  itemId: z.string(),
+  itemId: z.number(),
   quantity: z.number().min(1, "La quantité doit être positive"),
   notes: z.string().optional(),
 });
@@ -72,6 +82,3 @@ export function getMissingQuantity(item: StockItem): number {
   const threshold = item.threshold || 0;
   return Math.max(0, threshold - available);
 }
-
-// Initial stock data (empty - use CSV import to add articles)
-export const initialStockData: StockItem[] = [];
