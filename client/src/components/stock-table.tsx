@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Pencil, Check, X, AlertTriangle, CheckCircle, AlertCircle, TrendingUp, MapPin, Package } from "lucide-react";
+import { Pencil, Check, X, AlertTriangle, CheckCircle, AlertCircle, TrendingUp, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StockTableProps {
@@ -44,11 +44,13 @@ function EditableCell({
   onSave,
   type = "text",
   className,
+  align = "left",
 }: {
   value: string | number;
   onSave: (value: string | number) => void;
   type?: "text" | "number";
   className?: string;
+  align?: "left" | "right" | "center";
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(String(value));
@@ -76,21 +78,21 @@ function EditableCell({
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-1">
+      <div className={cn("flex items-center gap-1", align === "right" && "justify-end")}>
         <Input
           type={type}
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
-          className={cn("h-8", type === "number" ? "w-20 text-right" : "w-32", "font-mono")}
+          className={cn("h-8", type === "number" ? "w-20 text-right" : "w-full", "font-mono")}
           autoFocus
           data-testid="input-edit-cell"
         />
         <Button
           size="icon"
           variant="ghost"
-          className="h-6 w-6"
+          className="h-6 w-6 shrink-0"
           onClick={handleSave}
           data-testid="button-save-cell"
         >
@@ -99,7 +101,7 @@ function EditableCell({
         <Button
           size="icon"
           variant="ghost"
-          className="h-6 w-6"
+          className="h-6 w-6 shrink-0"
           onClick={handleCancel}
           data-testid="button-cancel-cell"
         >
@@ -113,13 +115,15 @@ function EditableCell({
     <button
       onClick={() => setIsEditing(true)}
       className={cn(
-        "flex items-center gap-1.5 group cursor-pointer hover-elevate rounded px-2 py-1 -mx-2 -my-1",
+        "flex items-center gap-1.5 group cursor-pointer hover-elevate rounded px-2 py-1 -mx-2 -my-1 w-full",
+        align === "right" && "justify-end",
+        align === "center" && "justify-center",
         className
       )}
       data-testid="button-edit-cell"
     >
       <span className={cn(type === "number" && "font-mono tabular-nums")}>{value}</span>
-      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
     </button>
   );
 }
@@ -130,8 +134,7 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
       const matchesSearch =
         searchQuery === "" ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.location?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+        item.reference.toLowerCase().includes(searchQuery.toLowerCase());
 
       const itemStatus = getStockStatus(item);
       const matchesStatus = statusFilter === "all" || itemStatus === statusFilter;
@@ -173,10 +176,10 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
             <TableRow className="bg-muted/50">
               <TableHead className="font-semibold w-28">Référence</TableHead>
               <TableHead className="font-semibold min-w-[200px]">Article</TableHead>
-              <TableHead className="font-semibold text-right w-24">Stock</TableHead>
-              <TableHead className="font-semibold text-right w-28">Arrivage</TableHead>
-              <TableHead className="font-semibold w-28">Statut</TableHead>
-              <TableHead className="font-semibold">Emplacement</TableHead>
+              <TableHead className="font-semibold w-24 text-right">Stock</TableHead>
+              <TableHead className="font-semibold w-20 text-center">Unité</TableHead>
+              <TableHead className="font-semibold w-28 text-right">Arrivage</TableHead>
+              <TableHead className="font-semibold w-24 text-center">Statut</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -212,12 +215,15 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                       value={item.currentStock}
                       onSave={(val) => handleUpdateField(item, "currentStock", val)}
                       type="number"
+                      align="right"
                       className={cn(
-                        "justify-end",
                         status === "critical" && "text-destructive font-semibold",
                         status === "low" && "text-amber-600 dark:text-amber-400 font-medium"
                       )}
                     />
+                  </TableCell>
+                  <TableCell className="text-center text-muted-foreground text-sm">
+                    {item.unit}
                   </TableCell>
                   <TableCell className="text-right">
                     {item.pendingArrival > 0 ? (
@@ -227,19 +233,15 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                           value={item.pendingArrival}
                           onSave={(val) => handleUpdateField(item, "pendingArrival", val)}
                           type="number"
-                          className="justify-end text-primary font-medium"
+                          align="right"
+                          className="text-primary font-medium"
                         />
                       </div>
                     ) : (
-                      <EditableCell
-                        value={item.pendingArrival}
-                        onSave={(val) => handleUpdateField(item, "pendingArrival", val)}
-                        type="number"
-                        className="justify-end text-muted-foreground"
-                      />
+                      <span className="text-muted-foreground px-2">-</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Badge
@@ -258,16 +260,6 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                         {status === "high" && "Stock élevé"}
                       </TooltipContent>
                     </Tooltip>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {item.location ? (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {item.location}
-                      </span>
-                    ) : (
-                      "-"
-                    )}
                   </TableCell>
                 </TableRow>
               );
