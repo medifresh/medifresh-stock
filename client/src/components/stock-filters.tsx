@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 import type { StockItem } from "@shared/schema";
-import { getStockStatus } from "@shared/schema";
+import { getStockStatus, getMissingQuantity } from "@shared/schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Package, Printer, X, Upload, Download } from "lucide-react";
+import { Search, Package, Printer, X, Upload, Download, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StockFiltersProps {
@@ -21,6 +21,7 @@ interface StockFiltersProps {
   statusFilter: string;
   onStatusChange: (status: string) => void;
   onOpenArrival: () => void;
+  onOpenOrderList: () => void;
   onPrint: () => void;
   onImportCSV: (file: File) => void;
   onExportCSV: () => void;
@@ -33,6 +34,7 @@ export function StockFilters({
   statusFilter,
   onStatusChange,
   onOpenArrival,
+  onOpenOrderList,
   onPrint,
   onImportCSV,
   onExportCSV,
@@ -43,7 +45,8 @@ export function StockFilters({
     const critical = items.filter((i) => getStockStatus(i) === "critical").length;
     const low = items.filter((i) => getStockStatus(i) === "low").length;
     const pendingArrivals = items.filter((i) => i.pendingArrival > 0).length;
-    return { critical, low, pendingArrivals };
+    const needsOrder = items.filter((i) => getMissingQuantity(i) > 0).length;
+    return { critical, low, pendingArrivals, needsOrder };
   }, [items]);
 
   const hasActiveFilters = statusFilter !== "all" || searchQuery !== "";
@@ -140,6 +143,20 @@ export function StockFilters({
           <Button onClick={onOpenArrival} className="gap-2 h-10" data-testid="button-arrival">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Réception</span>
+          </Button>
+          <Button 
+            variant={stats.needsOrder > 0 ? "default" : "outline"} 
+            onClick={onOpenOrderList} 
+            className={cn("gap-2 h-10", stats.needsOrder > 0 && "bg-destructive hover:bg-destructive/90")}
+            data-testid="button-order-list"
+          >
+            <ClipboardList className="h-4 w-4" />
+            <span className="hidden sm:inline">Commande</span>
+            {stats.needsOrder > 0 && (
+              <Badge variant="secondary" className="ml-1 bg-background/20 text-current">
+                {stats.needsOrder}
+              </Badge>
+            )}
           </Button>
           <Button variant="outline" onClick={onPrint} className="gap-2 h-10" data-testid="button-print">
             <Printer className="h-4 w-4" />

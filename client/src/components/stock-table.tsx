@@ -6,8 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Pencil, Check, X, AlertTriangle, CheckCircle, AlertCircle, TrendingUp, Package } from "lucide-react";
+import { Pencil, Check, X, AlertTriangle, CheckCircle, AlertCircle, TrendingUp, Package, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ArticleDetailModal } from "./article-detail-modal";
+
+type SortField = "reference" | "name" | "currentStock" | "pendingArrival" | "threshold" | "status" | "missing";
+type SortDirection = "asc" | "desc";
+
+interface SortConfig {
+  field: SortField;
+  direction: SortDirection;
+}
 
 interface StockTableProps {
   items: StockItem[];
@@ -128,9 +137,64 @@ function EditableCell({
   );
 }
 
+const statusPriority: Record<StockStatus, number> = {
+  critical: 0,
+  low: 1,
+  adequate: 2,
+  high: 3,
+};
+
+function SortableHeader({ 
+  field, 
+  label, 
+  sortConfig, 
+  onSort, 
+  className 
+}: { 
+  field: SortField; 
+  label: string; 
+  sortConfig: SortConfig | null; 
+  onSort: (field: SortField) => void;
+  className?: string;
+}) {
+  const isActive = sortConfig?.field === field;
+  const Icon = isActive 
+    ? (sortConfig.direction === "asc" ? ArrowUp : ArrowDown)
+    : ArrowUpDown;
+  
+  return (
+    <button
+      onClick={() => onSort(field)}
+      className={cn(
+        "flex items-center gap-1 hover-elevate rounded px-1 -mx-1 py-0.5 -my-0.5 font-semibold",
+        className
+      )}
+      data-testid={`button-sort-${field}`}
+    >
+      {label}
+      <Icon className={cn("h-3.5 w-3.5", isActive ? "opacity-100" : "opacity-40")} />
+    </button>
+  );
+}
+
 export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: StockTableProps) {
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+
+  const handleSort = useCallback((field: SortField) => {
+    setSortConfig((current) => {
+      if (current?.field === field) {
+        if (current.direction === "asc") {
+          return { field, direction: "desc" };
+        }
+        return null; // Reset sorting
+      }
+      return { field, direction: "asc" };
+    });
+  }, []);
+
+  const filteredAndSortedItems = useMemo(() => {
+    let result = items.filter((item) => {
       const matchesSearch =
         searchQuery === "" ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -141,7 +205,41 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
 
       return matchesSearch && matchesStatus;
     });
-  }, [items, searchQuery, statusFilter]);
+
+    if (sortConfig) {
+      result = [...result].sort((a, b) => {
+        let comparison = 0;
+        
+        switch (sortConfig.field) {
+          case "reference":
+            comparison = a.reference.localeCompare(b.reference);
+            break;
+          case "name":
+            comparison = a.name.localeCompare(b.name);
+            break;
+          case "currentStock":
+            comparison = a.currentStock - b.currentStock;
+            break;
+          case "pendingArrival":
+            comparison = a.pendingArrival - b.pendingArrival;
+            break;
+          case "threshold":
+            comparison = (a.threshold || 0) - (b.threshold || 0);
+            break;
+          case "status":
+            comparison = statusPriority[getStockStatus(a)] - statusPriority[getStockStatus(b)];
+            break;
+          case "missing":
+            comparison = getMissingQuantity(a) - getMissingQuantity(b);
+            break;
+        }
+        
+        return sortConfig.direction === "asc" ? comparison : -comparison;
+      });
+    }
+
+    return result;
+  }, [items, searchQuery, statusFilter, sortConfig]);
 
   const handleUpdateField = useCallback(
     (item: StockItem, field: keyof StockItem, value: string | number) => {
@@ -154,7 +252,7 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
     [onUpdateItem]
   );
 
-  if (filteredItems.length === 0) {
+  if (filteredAndSortedItems.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -169,22 +267,37 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
   }
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="font-semibold w-28">Référence</TableHead>
-              <TableHead className="font-semibold min-w-[200px]">Article</TableHead>
-              <TableHead className="font-semibold w-20 text-right">Stock</TableHead>
-              <TableHead className="font-semibold w-24 text-right">Arrivage</TableHead>
-              <TableHead className="font-semibold w-20 text-right">Seuil</TableHead>
-              <TableHead className="font-semibold w-24 text-center">Statut</TableHead>
-              <TableHead className="font-semibold w-24 text-right">Manquant</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredItems.map((item) => {
+    <>
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-28">
+                  <SortableHeader field="reference" label="Référence" sortConfig={sortConfig} onSort={handleSort} />
+                </TableHead>
+                <TableHead className="min-w-[200px]">
+                  <SortableHeader field="name" label="Article" sortConfig={sortConfig} onSort={handleSort} />
+                </TableHead>
+                <TableHead className="w-20">
+                  <SortableHeader field="currentStock" label="Stock" sortConfig={sortConfig} onSort={handleSort} className="justify-end" />
+                </TableHead>
+                <TableHead className="w-24">
+                  <SortableHeader field="pendingArrival" label="Arrivage" sortConfig={sortConfig} onSort={handleSort} className="justify-end" />
+                </TableHead>
+                <TableHead className="w-20">
+                  <SortableHeader field="threshold" label="Seuil" sortConfig={sortConfig} onSort={handleSort} className="justify-end" />
+                </TableHead>
+                <TableHead className="w-24">
+                  <SortableHeader field="status" label="Statut" sortConfig={sortConfig} onSort={handleSort} className="justify-center" />
+                </TableHead>
+                <TableHead className="w-24">
+                  <SortableHeader field="missing" label="Manquant" sortConfig={sortConfig} onSort={handleSort} className="justify-end" />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredAndSortedItems.map((item) => {
               const status = getStockStatus(item);
               const config = statusConfig[status];
               const StatusIcon = config.icon;
@@ -207,10 +320,13 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                     />
                   </TableCell>
                   <TableCell className="font-medium">
-                    <EditableCell
-                      value={item.name}
-                      onSave={(val) => handleUpdateField(item, "name", val)}
-                    />
+                    <button
+                      onClick={() => setSelectedItem(item)}
+                      className="text-left hover:underline hover:text-primary cursor-pointer w-full"
+                      data-testid={`button-article-detail-${item.id}`}
+                    >
+                      {item.name}
+                    </button>
                   </TableCell>
                   <TableCell className="text-right">
                     <EditableCell
@@ -283,5 +399,16 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
         </Table>
       </div>
     </div>
+
+    <ArticleDetailModal
+      item={selectedItem}
+      open={selectedItem !== null}
+      onClose={() => setSelectedItem(null)}
+      onUpdateItem={(updatedItem) => {
+        onUpdateItem(updatedItem);
+        setSelectedItem(updatedItem);
+      }}
+    />
+    </>
   );
 }

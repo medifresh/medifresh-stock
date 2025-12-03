@@ -9,6 +9,7 @@ import { StockFilters } from "@/components/stock-filters";
 import { StockTable } from "@/components/stock-table";
 import { StockArrivalModal } from "@/components/stock-arrival-modal";
 import { CSVImportModal, parseCSV } from "@/components/csv-import-modal";
+import { OrderListModal } from "@/components/order-list-modal";
 import { OfflineBanner } from "@/components/offline-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -33,6 +34,7 @@ export default function StockManager() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isArrivalModalOpen, setIsArrivalModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isOrderListOpen, setIsOrderListOpen] = useState(false);
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
 
   const {
@@ -302,6 +304,7 @@ export default function StockManager() {
             statusFilter={statusFilter}
             onStatusChange={setStatusFilter}
             onOpenArrival={() => setIsArrivalModalOpen(true)}
+            onOpenOrderList={() => setIsOrderListOpen(true)}
             onPrint={handlePrint}
             onImportCSV={handleImportCSV}
             onExportCSV={handleExportCSV}
@@ -337,6 +340,12 @@ export default function StockManager() {
         onOpenChange={setIsImportModalOpen}
         parsedItems={parsedItems}
         onConfirmImport={handleConfirmImport}
+      />
+
+      <OrderListModal
+        items={stockItems}
+        open={isOrderListOpen}
+        onClose={() => setIsOrderListOpen(false)}
       />
     </div>
   );
