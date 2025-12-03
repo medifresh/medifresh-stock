@@ -1,19 +1,18 @@
 import { useState, useCallback, useMemo } from "react";
 import type { StockItem, StockStatus } from "@shared/schema";
-import { getStockStatus, getMissingQuantity } from "@shared/schema";
+import { getStockStatus } from "@shared/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Pencil, Check, X, AlertTriangle, CheckCircle, AlertCircle, TrendingUp, MapPin } from "lucide-react";
+import { Pencil, Check, X, AlertTriangle, CheckCircle, AlertCircle, TrendingUp, MapPin, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StockTableProps {
   items: StockItem[];
   onUpdateItem: (item: StockItem) => void;
   searchQuery: string;
-  categoryFilter: string;
   statusFilter: string;
 }
 
@@ -84,7 +83,7 @@ function EditableCell({
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
-          className="h-8 w-20 text-right font-mono"
+          className={cn("h-8", type === "number" ? "w-20 text-right" : "w-32", "font-mono")}
           autoFocus
           data-testid="input-edit-cell"
         />
@@ -125,23 +124,21 @@ function EditableCell({
   );
 }
 
-export function StockTable({ items, onUpdateItem, searchQuery, categoryFilter, statusFilter }: StockTableProps) {
+export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: StockTableProps) {
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const matchesSearch =
         searchQuery === "" ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.location?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
 
-      const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-      
       const itemStatus = getStockStatus(item);
       const matchesStatus = statusFilter === "all" || itemStatus === statusFilter;
 
-      return matchesSearch && matchesCategory && matchesStatus;
+      return matchesSearch && matchesStatus;
     });
-  }, [items, searchQuery, categoryFilter, statusFilter]);
+  }, [items, searchQuery, statusFilter]);
 
   const handleUpdateField = useCallback(
     (item: StockItem, field: keyof StockItem, value: string | number) => {
@@ -174,12 +171,10 @@ export function StockTable({ items, onUpdateItem, searchQuery, categoryFilter, s
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="font-semibold w-28">Référence</TableHead>
               <TableHead className="font-semibold min-w-[200px]">Article</TableHead>
-              <TableHead className="font-semibold">Catégorie</TableHead>
               <TableHead className="font-semibold text-right w-24">Stock</TableHead>
-              <TableHead className="font-semibold text-right w-24">Min</TableHead>
-              <TableHead className="font-semibold text-right w-24">Max</TableHead>
-              <TableHead className="font-semibold text-right w-24">Manquant</TableHead>
+              <TableHead className="font-semibold text-right w-28">Arrivage</TableHead>
               <TableHead className="font-semibold w-28">Statut</TableHead>
               <TableHead className="font-semibold">Emplacement</TableHead>
             </TableRow>
@@ -187,7 +182,6 @@ export function StockTable({ items, onUpdateItem, searchQuery, categoryFilter, s
           <TableBody>
             {filteredItems.map((item) => {
               const status = getStockStatus(item);
-              const missing = getMissingQuantity(item);
               const config = statusConfig[status];
               const StatusIcon = config.icon;
 
@@ -201,16 +195,17 @@ export function StockTable({ items, onUpdateItem, searchQuery, categoryFilter, s
                   )}
                   data-testid={`row-stock-${item.id}`}
                 >
+                  <TableCell className="font-mono text-sm text-muted-foreground">
+                    <EditableCell
+                      value={item.reference}
+                      onSave={(val) => handleUpdateField(item, "reference", val)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <EditableCell
                       value={item.name}
                       onSave={(val) => handleUpdateField(item, "name", val)}
                     />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-normal">
-                      {item.category}
-                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <EditableCell
@@ -224,29 +219,24 @@ export function StockTable({ items, onUpdateItem, searchQuery, categoryFilter, s
                       )}
                     />
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    <EditableCell
-                      value={item.minStock}
-                      onSave={(val) => handleUpdateField(item, "minStock", val)}
-                      type="number"
-                      className="justify-end"
-                    />
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    <EditableCell
-                      value={item.maxStock}
-                      onSave={(val) => handleUpdateField(item, "maxStock", val)}
-                      type="number"
-                      className="justify-end"
-                    />
-                  </TableCell>
                   <TableCell className="text-right">
-                    {missing > 0 ? (
-                      <span className="font-mono tabular-nums text-destructive font-medium" data-testid={`text-missing-${item.id}`}>
-                        -{missing}
-                      </span>
+                    {item.pendingArrival > 0 ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Package className="h-3.5 w-3.5 text-primary" />
+                        <EditableCell
+                          value={item.pendingArrival}
+                          onSave={(val) => handleUpdateField(item, "pendingArrival", val)}
+                          type="number"
+                          className="justify-end text-primary font-medium"
+                        />
+                      </div>
                     ) : (
-                      <span className="text-muted-foreground">-</span>
+                      <EditableCell
+                        value={item.pendingArrival}
+                        onSave={(val) => handleUpdateField(item, "pendingArrival", val)}
+                        type="number"
+                        className="justify-end text-muted-foreground"
+                      />
                     )}
                   </TableCell>
                   <TableCell>

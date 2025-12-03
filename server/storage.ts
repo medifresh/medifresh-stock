@@ -9,6 +9,7 @@ export interface IStorage {
   updateStock(item: UpdateStockItem): Promise<StockItem | undefined>;
   deleteStock(id: string): Promise<boolean>;
   applyArrivals(arrivals: { itemId: string; quantity: number }[]): Promise<StockItem[]>;
+  importStock(items: InsertStockItem[]): Promise<{ imported: number }>;
   getBackupData(): Promise<{ stock: StockItem[]; timestamp: string }>;
 }
 
@@ -36,6 +37,7 @@ export class MemStorage implements IStorage {
     const newItem: StockItem = {
       ...item,
       id,
+      pendingArrival: item.pendingArrival || 0,
       lastUpdated: new Date().toISOString(),
     };
     this.stock.set(id, newItem);
@@ -69,6 +71,7 @@ export class MemStorage implements IStorage {
         const updatedItem: StockItem = {
           ...existing,
           currentStock: existing.currentStock + arrival.quantity,
+          pendingArrival: Math.max(0, (existing.pendingArrival || 0) - arrival.quantity),
           lastUpdated: new Date().toISOString(),
         };
         this.stock.set(arrival.itemId, updatedItem);
@@ -77,6 +80,44 @@ export class MemStorage implements IStorage {
     }
     
     return updatedItems;
+  }
+
+  async importStock(items: InsertStockItem[]): Promise<{ imported: number }> {
+    let imported = 0;
+    
+    for (const item of items) {
+      // Check if reference already exists
+      const existingByRef = Array.from(this.stock.values()).find(
+        (s) => s.reference.toLowerCase() === item.reference.toLowerCase()
+      );
+      
+      if (existingByRef) {
+        // Update existing item
+        const updatedItem: StockItem = {
+          ...existingByRef,
+          name: item.name,
+          currentStock: item.currentStock,
+          pendingArrival: item.pendingArrival || 0,
+          unit: item.unit,
+          location: item.location,
+          lastUpdated: new Date().toISOString(),
+        };
+        this.stock.set(existingByRef.id, updatedItem);
+      } else {
+        // Create new item
+        const id = randomUUID();
+        const newItem: StockItem = {
+          ...item,
+          id,
+          pendingArrival: item.pendingArrival || 0,
+          lastUpdated: new Date().toISOString(),
+        };
+        this.stock.set(id, newItem);
+      }
+      imported++;
+    }
+    
+    return { imported };
   }
 
   async getBackupData(): Promise<{ stock: StockItem[]; timestamp: string }> {

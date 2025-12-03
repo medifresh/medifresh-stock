@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { StockItem } from "@shared/schema";
-import { initialStockData } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useWebSocket } from "@/lib/websocket-context";
 import { useToast } from "@/hooks/use-toast";
@@ -9,19 +8,32 @@ import { Header } from "@/components/header";
 import { StockFilters } from "@/components/stock-filters";
 import { StockTable } from "@/components/stock-table";
 import { StockArrivalModal } from "@/components/stock-arrival-modal";
+import { CSVImportModal, parseCSV } from "@/components/csv-import-modal";
 import { OfflineBanner } from "@/components/offline-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Package, AlertTriangle, TrendingUp, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface ParsedItem {
+  reference: string;
+  name: string;
+  currentStock: number;
+  pendingArrival: number;
+  unit: string;
+  location: string;
+  valid: boolean;
+  error?: string;
+}
+
 export default function StockManager() {
   const { toast } = useToast();
-  const { sendMessage, lastMessage, isConnected } = useWebSocket();
+  const { sendMessage, lastMessage } = useWebSocket();
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isArrivalModalOpen, setIsArrivalModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
 
   const {
     data: stockItems = [],
@@ -75,14 +87,42 @@ export default function StockManager() {
       });
       
       toast({
-        title: "Arrivage enregistré",
+        title: "Réception enregistrée",
         description: `${updatedItems.length} article${updatedItems.length > 1 ? "s" : ""} mis à jour`,
       });
     },
     onError: () => {
       toast({
         title: "Erreur",
-        description: "Impossible d'enregistrer l'arrivage",
+        description: "Impossible d'enregistrer la réception",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: async (items: ParsedItem[]) => {
+      const response = await apiRequest("POST", "/api/stock/import", { items: items.filter(i => i.valid) });
+      return response.json();
+    },
+    onSuccess: (result: { imported: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
+      
+      sendMessage({
+        type: "import",
+        payload: {},
+        timestamp: new Date().toISOString(),
+      });
+      
+      toast({
+        title: "Import réussi",
+        description: `${result.imported} article${result.imported > 1 ? "s" : ""} importé${result.imported > 1 ? "s" : ""}`,
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'importer les articles",
         variant: "destructive",
       });
     },
@@ -97,7 +137,7 @@ export default function StockManager() {
       queryClient.setQueryData<StockItem[]>(["/api/stock"], (old) =>
         old?.map((item) => (item.id === updatedItem.id ? updatedItem : item)) ?? []
       );
-    } else if (lastMessage.type === "full_sync" || lastMessage.type === "arrival") {
+    } else if (lastMessage.type === "full_sync" || lastMessage.type === "arrival" || lastMessage.type === "import") {
       refetch();
     }
   }, [lastMessage, refetch]);
@@ -116,14 +156,28 @@ export default function StockManager() {
     [arrivalMutation]
   );
 
+  const handleImportCSV = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const parsed = parseCSV(content);
+      setParsedItems(parsed);
+      setIsImportModalOpen(true);
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const handleConfirmImport = useCallback(() => {
+    importMutation.mutate(parsedItems);
+  }, [importMutation, parsedItems]);
+
   const handleExportCSV = useCallback(() => {
-    const headers = ["Nom", "Catégorie", "Stock", "Min", "Max", "Unité", "Emplacement"];
+    const headers = ["Référence", "Article", "Stock", "Arrivage", "Unité", "Emplacement"];
     const rows = stockItems.map((item) => [
+      item.reference,
       item.name,
-      item.category,
       item.currentStock,
-      item.minStock,
-      item.maxStock,
+      item.pendingArrival,
       item.unit,
       item.location || "",
     ]);
@@ -176,17 +230,11 @@ export default function StockManager() {
   }, []);
 
   const stats = useMemo(() => {
-    const critical = stockItems.filter((i) => {
-      const ratio = i.currentStock / i.minStock;
-      return ratio <= 0.25;
-    }).length;
-    const low = stockItems.filter((i) => {
-      const ratio = i.currentStock / i.minStock;
-      return ratio > 0.25 && ratio <= 0.75;
-    }).length;
+    const critical = stockItems.filter((i) => i.currentStock <= 0).length;
+    const low = stockItems.filter((i) => i.currentStock > 0 && i.currentStock <= 10).length;
     const total = stockItems.length;
-    const totalValue = stockItems.reduce((acc, i) => acc + i.currentStock, 0);
-    return { critical, low, total, totalValue };
+    const totalPending = stockItems.reduce((acc, i) => acc + (i.pendingArrival || 0), 0);
+    return { critical, low, total, totalPending };
   }, [stockItems]);
 
   if (isLoading) {
@@ -230,9 +278,9 @@ export default function StockManager() {
             className="text-primary"
           />
           <StatCard
-            title="Unités en stock"
-            value={stats.totalValue.toLocaleString("fr-FR")}
-            icon={BarChart3}
+            title="En attente"
+            value={stats.totalPending}
+            icon={TrendingUp}
             className="text-blue-600 dark:text-blue-400"
           />
           <StatCard
@@ -245,7 +293,7 @@ export default function StockManager() {
           <StatCard
             title="Stock bas"
             value={stats.low}
-            icon={TrendingUp}
+            icon={BarChart3}
             className="text-amber-600 dark:text-amber-400"
             highlight={stats.low > 0}
           />
@@ -256,12 +304,12 @@ export default function StockManager() {
             items={stockItems}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            categoryFilter={categoryFilter}
-            onCategoryChange={setCategoryFilter}
             statusFilter={statusFilter}
             onStatusChange={setStatusFilter}
             onOpenArrival={() => setIsArrivalModalOpen(true)}
             onPrint={handlePrint}
+            onImportCSV={handleImportCSV}
+            onExportCSV={handleExportCSV}
           />
         </div>
 
@@ -277,7 +325,6 @@ export default function StockManager() {
             items={stockItems}
             onUpdateItem={handleUpdateItem}
             searchQuery={searchQuery}
-            categoryFilter={categoryFilter}
             statusFilter={statusFilter}
           />
         </div>
@@ -288,6 +335,13 @@ export default function StockManager() {
         onOpenChange={setIsArrivalModalOpen}
         items={stockItems}
         onApplyArrivals={handleApplyArrivals}
+      />
+
+      <CSVImportModal
+        open={isImportModalOpen}
+        onOpenChange={setIsImportModalOpen}
+        parsedItems={parsedItems}
+        onConfirmImport={handleConfirmImport}
       />
     </div>
   );
@@ -310,7 +364,7 @@ function StatCard({ title, value, icon: Icon, className, highlight }: StatCardPr
       )}
       data-testid={`stat-${title.toLowerCase().replace(/\s+/g, "-")}`}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm text-muted-foreground">{title}</p>
           <p className={cn("text-2xl font-semibold mt-1 tabular-nums", className)}>

@@ -33,17 +33,6 @@ function broadcast(message: object, excludeClient?: WebSocket) {
   });
 }
 
-// Middleware to validate session token
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers.authorization?.replace("Bearer ", "") || "";
-  
-  if (!token || !activeSessions.has(token)) {
-    return res.status(401).json({ error: "Non autorisé - veuillez vous connecter" });
-  }
-  
-  next();
-}
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -98,7 +87,7 @@ export async function registerRoutes(
     }
   });
 
-  // Get all stock items (protected)
+  // Get all stock items
   app.get("/api/stock", async (_req, res) => {
     try {
       const items = await storage.getAllStock();
@@ -196,12 +185,12 @@ export async function registerRoutes(
     }
   });
 
-  // Apply stock arrivals (batch update)
+  // Apply stock arrivals (batch update) - receives items, adds to stock, reduces pending
   app.post("/api/stock/arrivals", async (req, res) => {
     try {
       const { arrivals } = req.body;
       if (!Array.isArray(arrivals) || arrivals.length === 0) {
-        return res.status(400).json({ error: "Données d'arrivage invalides" });
+        return res.status(400).json({ error: "Données de réception invalides" });
       }
       
       const updatedItems = await storage.applyArrivals(arrivals);
@@ -216,7 +205,31 @@ export async function registerRoutes(
       res.json(updatedItems);
     } catch (error) {
       console.error("Error applying arrivals:", error);
-      res.status(500).json({ error: "Erreur lors de l'application de l'arrivage" });
+      res.status(500).json({ error: "Erreur lors de l'application de la réception" });
+    }
+  });
+
+  // Import stock from CSV
+  app.post("/api/stock/import", async (req, res) => {
+    try {
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "Données d'import invalides" });
+      }
+      
+      const result = await storage.importStock(items);
+      
+      // Broadcast to all clients
+      broadcast({
+        type: "import",
+        payload: result,
+        timestamp: new Date().toISOString(),
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error importing stock:", error);
+      res.status(500).json({ error: "Erreur lors de l'import du stock" });
     }
   });
 

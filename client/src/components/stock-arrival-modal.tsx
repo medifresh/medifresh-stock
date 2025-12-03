@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Package, Plus, Minus, Search, Check } from "lucide-react";
@@ -36,7 +35,7 @@ export function StockArrivalModal({
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchQuery.toLowerCase())
+        item.reference.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [items, searchQuery]);
 
@@ -91,17 +90,17 @@ export function StockArrivalModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Package className="w-5 h-5 text-primary" />
-            Enregistrer un arrivage
+            Enregistrer une réception
           </DialogTitle>
           <DialogDescription>
-            Sélectionnez les articles reçus et indiquez les quantités
+            Sélectionnez les articles reçus et indiquez les quantités (déduit de l'arrivage en attente)
           </DialogDescription>
         </DialogHeader>
 
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Rechercher un article..."
+            placeholder="Rechercher par référence ou nom..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-10"
@@ -127,14 +126,20 @@ export function StockArrivalModal({
                   data-testid={`arrival-item-${item.id}`}
                 >
                   <div className="flex-1 min-w-0 mr-4">
-                    <div className="font-medium truncate">{item.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">{item.reference}</span>
+                      <span className="font-medium truncate">{item.name}</span>
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant="outline" className="text-xs font-normal">
-                        {item.category}
-                      </Badge>
                       <span className="text-xs text-muted-foreground">
-                        Stock actuel: {item.currentStock} {item.unit}
+                        Stock: {item.currentStock} {item.unit}
                       </span>
+                      {item.pendingArrival > 0 && (
+                        <Badge variant="outline" className="text-xs font-normal gap-1 bg-primary/10 text-primary border-primary/30">
+                          <Package className="h-3 w-3" />
+                          {item.pendingArrival} en attente
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
@@ -196,7 +201,7 @@ export function StockArrivalModal({
             data-testid="button-apply-arrival"
           >
             <Check className="h-4 w-4" />
-            Appliquer l'arrivage
+            Valider la réception
           </Button>
         </DialogFooter>
       </DialogContent>

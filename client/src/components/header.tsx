@@ -13,8 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Activity,
-  Wifi,
-  WifiOff,
   Moon,
   Sun,
   LogOut,
