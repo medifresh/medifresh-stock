@@ -1,37 +1,89 @@
-import { type User, type InsertUser } from "@shared/schema";
+import type { StockItem, InsertStockItem, UpdateStockItem } from "@shared/schema";
+import { initialStockData } from "@shared/schema";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getAllStock(): Promise<StockItem[]>;
+  getStockById(id: string): Promise<StockItem | undefined>;
+  createStock(item: InsertStockItem): Promise<StockItem>;
+  updateStock(item: UpdateStockItem): Promise<StockItem | undefined>;
+  deleteStock(id: string): Promise<boolean>;
+  applyArrivals(arrivals: { itemId: string; quantity: number }[]): Promise<StockItem[]>;
+  getBackupData(): Promise<{ stock: StockItem[]; timestamp: string }>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private stock: Map<string, StockItem>;
 
   constructor() {
-    this.users = new Map();
+    this.stock = new Map();
+    // Initialize with sample medical stock data
+    initialStockData.forEach((item) => {
+      this.stock.set(item.id, item);
+    });
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getAllStock(): Promise<StockItem[]> {
+    return Array.from(this.stock.values()).sort((a, b) => a.name.localeCompare(b.name, "fr"));
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async getStockById(id: string): Promise<StockItem | undefined> {
+    return this.stock.get(id);
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createStock(item: InsertStockItem): Promise<StockItem> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const newItem: StockItem = {
+      ...item,
+      id,
+      lastUpdated: new Date().toISOString(),
+    };
+    this.stock.set(id, newItem);
+    return newItem;
+  }
+
+  async updateStock(item: UpdateStockItem): Promise<StockItem | undefined> {
+    const existing = this.stock.get(item.id);
+    if (!existing) {
+      return undefined;
+    }
+    const updatedItem: StockItem = {
+      ...existing,
+      ...item,
+      lastUpdated: new Date().toISOString(),
+    };
+    this.stock.set(item.id, updatedItem);
+    return updatedItem;
+  }
+
+  async deleteStock(id: string): Promise<boolean> {
+    return this.stock.delete(id);
+  }
+
+  async applyArrivals(arrivals: { itemId: string; quantity: number }[]): Promise<StockItem[]> {
+    const updatedItems: StockItem[] = [];
+    
+    for (const arrival of arrivals) {
+      const existing = this.stock.get(arrival.itemId);
+      if (existing) {
+        const updatedItem: StockItem = {
+          ...existing,
+          currentStock: existing.currentStock + arrival.quantity,
+          lastUpdated: new Date().toISOString(),
+        };
+        this.stock.set(arrival.itemId, updatedItem);
+        updatedItems.push(updatedItem);
+      }
+    }
+    
+    return updatedItems;
+  }
+
+  async getBackupData(): Promise<{ stock: StockItem[]; timestamp: string }> {
+    return {
+      stock: await this.getAllStock(),
+      timestamp: new Date().toISOString(),
+    };
   }
 }
 

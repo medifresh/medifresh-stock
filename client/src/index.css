@@ -43,9 +43,9 @@
   --chart-3: 170 75% 32%;
   --chart-4: 155 65% 30%;
   --chart-5: 140 60% 28%;
-  --font-sans: Open Sans, sans-serif;
+  --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
+  --font-mono: JetBrains Mono, Menlo, monospace;
   --radius: .5rem;
   --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.00);
   --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.00);
@@ -284,5 +284,57 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+}
+
+/* Print styles for stock reports */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12px !important;
+  }
+
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  .print\\:block {
+    display: block !important;
+  }
+
+  header, .print\\:hide, button, [data-testid="button-edit-cell"] .lucide-pencil {
+    display: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 11px !important;
+  }
+
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 6px 8px !important;
+    text-align: left !important;
+  }
+
+  th {
+    background: #f5f5f5 !important;
+    font-weight: 600 !important;
+  }
+
+  tr:nth-child(even) {
+    background: #fafafa !important;
+  }
+
+  .text-destructive {
+    color: #dc2626 !important;
+    font-weight: 600 !important;
+  }
+
+  @page {
+    margin: 1cm;
+    size: landscape;
   }
 }
