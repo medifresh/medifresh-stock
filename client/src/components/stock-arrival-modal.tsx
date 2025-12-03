@@ -30,14 +30,28 @@ export function StockArrivalModal({
 }: StockArrivalModalProps) {
   const [arrivals, setArrivals] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [showOnlyPending, setShowOnlyPending] = useState(true);
+
+  const itemsWithPending = useMemo(() => {
+    return items.filter((item) => item.pendingArrival > 0);
+  }, [items]);
 
   const filteredItems = useMemo(() => {
-    return items.filter(
+    const baseItems = showOnlyPending ? itemsWithPending : items;
+    return baseItems.filter(
       (item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.reference.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [items, searchQuery]);
+  }, [items, itemsWithPending, searchQuery, showOnlyPending]);
+
+  const confirmAllPending = () => {
+    const pendingArrivals: Record<string, number> = {};
+    itemsWithPending.forEach((item) => {
+      pendingArrivals[item.id] = item.pendingArrival;
+    });
+    setArrivals(pendingArrivals);
+  };
 
   const totalItems = useMemo(() => {
     return Object.values(arrivals).filter((qty) => qty > 0).length;
@@ -81,6 +95,7 @@ export function StockArrivalModal({
   const handleClose = () => {
     setArrivals({});
     setSearchQuery("");
+    setShowOnlyPending(true);
     onOpenChange(false);
   };
 
@@ -93,19 +108,53 @@ export function StockArrivalModal({
             Enregistrer une réception
           </DialogTitle>
           <DialogDescription>
-            Sélectionnez les articles reçus et indiquez les quantités (déduit de l'arrivage en attente)
+            Confirmez les arrivages reçus. Les quantités seront ajoutées au stock et déduites des arrivages en attente.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher par référence ou nom..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10"
-            data-testid="input-arrival-search"
-          />
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher par référence ou nom..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-10"
+              data-testid="input-arrival-search"
+            />
+          </div>
+          {itemsWithPending.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={confirmAllPending}
+              className="gap-2 whitespace-nowrap"
+              data-testid="button-confirm-all-pending"
+            >
+              <Check className="h-4 w-4" />
+              Tout confirmer ({itemsWithPending.length})
+            </Button>
+          )}
+        </div>
+
+        <div className="flex gap-2 mb-2">
+          <Button
+            variant={showOnlyPending ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowOnlyPending(true)}
+            className="gap-1"
+            data-testid="button-show-pending"
+          >
+            <Package className="h-3 w-3" />
+            En attente ({itemsWithPending.length})
+          </Button>
+          <Button
+            variant={!showOnlyPending ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowOnlyPending(false)}
+            data-testid="button-show-all"
+          >
+            Tous les articles
+          </Button>
         </div>
 
         <ScrollArea className="flex-1 -mx-6 px-6">

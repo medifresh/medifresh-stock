@@ -145,11 +145,11 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
 
   const handleUpdateField = useCallback(
     (item: StockItem, field: keyof StockItem, value: string | number) => {
+      const { lastUpdated, ...itemWithoutDate } = item;
       onUpdateItem({
-        ...item,
+        ...itemWithoutDate,
         [field]: value,
-        lastUpdated: new Date().toISOString(),
-      });
+      } as StockItem);
     },
     [onUpdateItem]
   );
@@ -225,20 +225,18 @@ export function StockTable({ items, onUpdateItem, searchQuery, statusFilter }: S
                     />
                   </TableCell>
                   <TableCell className="text-right">
-                    {item.pendingArrival > 0 ? (
-                      <div className="flex items-center justify-end gap-1.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {item.pendingArrival > 0 && (
                         <Package className="h-3.5 w-3.5 text-primary" />
-                        <EditableCell
-                          value={item.pendingArrival}
-                          onSave={(val) => handleUpdateField(item, "pendingArrival", val)}
-                          type="number"
-                          align="right"
-                          className="text-primary font-medium"
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground px-2">-</span>
-                    )}
+                      )}
+                      <EditableCell
+                        value={item.pendingArrival}
+                        onSave={(val) => handleUpdateField(item, "pendingArrival", val)}
+                        type="number"
+                        align="right"
+                        className={item.pendingArrival > 0 ? "text-primary font-medium" : "text-muted-foreground"}
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <EditableCell

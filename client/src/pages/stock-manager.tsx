@@ -74,11 +74,7 @@ export default function StockManager() {
       return response.json();
     },
     onSuccess: (updatedItems: StockItem[]) => {
-      queryClient.setQueryData<StockItem[]>(["/api/stock"], (old) => {
-        if (!old) return updatedItems;
-        const updateMap = new Map(updatedItems.map((item) => [item.id, item]));
-        return old.map((item) => updateMap.get(item.id) ?? item);
-      });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
       
       sendMessage({
         type: "arrival",
