@@ -38,6 +38,7 @@ export class MemStorage implements IStorage {
       ...item,
       id,
       pendingArrival: item.pendingArrival || 0,
+      threshold: item.threshold || 0,
       lastUpdated: new Date().toISOString(),
     };
     this.stock.set(id, newItem);
@@ -98,6 +99,7 @@ export class MemStorage implements IStorage {
           name: item.name,
           currentStock: item.currentStock,
           pendingArrival: item.pendingArrival || 0,
+          threshold: item.threshold || 0,
           unit: item.unit,
           location: item.location,
           lastUpdated: new Date().toISOString(),
@@ -110,6 +112,7 @@ export class MemStorage implements IStorage {
           ...item,
           id,
           pendingArrival: item.pendingArrival || 0,
+          threshold: item.threshold || 0,
           lastUpdated: new Date().toISOString(),
         };
         this.stock.set(id, newItem);
