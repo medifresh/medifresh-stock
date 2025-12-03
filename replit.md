@@ -11,6 +11,9 @@ Medifresh Stock est une application web progressive (PWA) destinée à la gestio
 - Exporter les données en CSV
 - Imprimer des rapports de stock
 - Travailler hors ligne avec synchronisation automatique
+- Gérer les fournisseurs avec coordonnées complètes
+- Trier les colonnes du tableau (asc/desc)
+- Générer automatiquement les listes de commande
 
 ## Architecture
 
@@ -34,6 +37,11 @@ Medifresh Stock est une application web progressive (PWA) destinée à la gestio
 - `POST /api/sync` - Synchronise les données hors ligne
 - `GET /api/backup` - Télécharge une sauvegarde JSON
 - `POST /api/auth` - Vérifie le code d'accès
+- `GET /api/suppliers` - Liste tous les fournisseurs
+- `GET /api/suppliers/:id` - Récupère un fournisseur
+- `POST /api/suppliers` - Crée un fournisseur
+- `PUT /api/suppliers/:id` - Met à jour un fournisseur
+- `DELETE /api/suppliers/:id` - Supprime un fournisseur
 
 ### WebSocket
 - Chemin : `/ws`
@@ -47,6 +55,13 @@ Medifresh Stock est une application web progressive (PWA) destinée à la gestio
 
 ## Recent Changes
 
+- 2025-12-03 : Ajout des fonctionnalités avancées
+  - Gestion des fournisseurs avec CRUD complet
+  - Popup détails article avec association fournisseur
+  - Tri des colonnes du tableau (asc/desc/reset)
+  - Liste de commande automatique avec export CSV
+  - Formule : Manquant = Seuil - (Stock + Arrivage)
+  
 - 2025-12-03 : Création initiale de l'application
   - Implémentation complète du frontend React avec Tailwind
   - Backend Express avec WebSocket pour temps réel
@@ -69,11 +84,13 @@ L'application démarre sur le port 5000.
 │   │   └── favicon.png
 │   ├── src/
 │   │   ├── components/
+│   │   │   ├── article-detail-modal.tsx  # Popup détails article + fournisseurs
 │   │   │   ├── header.tsx
 │   │   │   ├── offline-banner.tsx
+│   │   │   ├── order-list-modal.tsx      # Liste de commande automatique
 │   │   │   ├── stock-arrival-modal.tsx
 │   │   │   ├── stock-filters.tsx
-│   │   │   └── stock-table.tsx
+│   │   │   └── stock-table.tsx           # Tableau avec tri des colonnes
 │   │   ├── lib/
 │   │   │   ├── auth-context.tsx
 │   │   │   ├── theme-context.tsx
@@ -86,7 +103,7 @@ L'application démarre sur le port 5000.
 │   ├── routes.ts
 │   └── storage.ts
 └── shared/
-    └── schema.ts
+    └── schema.ts                         # Modèles: stockItems, suppliers
 ```
 
 ## Deployment
