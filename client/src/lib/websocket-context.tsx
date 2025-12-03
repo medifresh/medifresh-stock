@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useRef, useCallback, type ReactNode } from "react";
-import type { SyncMessage, StockItem } from "@shared/schema";
+import type { SyncMessage } from "@shared/schema";
 
 interface WebSocketContextType {
   isConnected: boolean;
@@ -17,10 +17,17 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [lastMessage, setLastMessage] = useState<SyncMessage | null>(null);
   const [pendingQueue, setPendingQueue] = useState<SyncMessage[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isConnectingRef = useRef(false);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    // Prevent multiple simultaneous connection attempts
+    if (isConnectingRef.current || wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    isConnectingRef.current = true;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -30,26 +37,44 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        isConnectingRef.current = false;
         setIsConnected(true);
-        // Process pending queue
-        pendingQueue.forEach((msg) => {
-          ws.send(JSON.stringify(msg));
-        });
-        setPendingQueue([]);
+        
+        // Start ping interval to keep connection alive
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+        }
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 25000); // Send ping every 25 seconds
       };
 
       ws.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data) as SyncMessage;
-          setLastMessage(message);
+          const message = JSON.parse(event.data);
+          // Ignore pong messages
+          if (message.type === "pong") {
+            return;
+          }
+          setLastMessage(message as SyncMessage);
         } catch (e) {
           console.error("Failed to parse WebSocket message:", e);
         }
       };
 
       ws.onclose = () => {
+        isConnectingRef.current = false;
         setIsConnected(false);
-        // Attempt to reconnect after 3 seconds
+        
+        // Clear ping interval
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = null;
+        }
+        
+        // Attempt to reconnect after 5 seconds
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
@@ -57,17 +82,19 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           if (navigator.onLine) {
             connect();
           }
-        }, 3000);
+        }, 5000);
       };
 
       ws.onerror = () => {
+        isConnectingRef.current = false;
         setIsConnected(false);
       };
     } catch (e) {
       console.error("WebSocket connection error:", e);
+      isConnectingRef.current = false;
       setIsConnected(false);
     }
-  }, [pendingQueue]);
+  }, []);
 
   const sendMessage = useCallback((message: SyncMessage) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -77,6 +104,16 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       setPendingQueue((prev) => [...prev, message]);
     }
   }, []);
+
+  // Process pending queue when connected
+  useEffect(() => {
+    if (isConnected && pendingQueue.length > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
+      pendingQueue.forEach((msg) => {
+        wsRef.current?.send(JSON.stringify(msg));
+      });
+      setPendingQueue([]);
+    }
+  }, [isConnected, pendingQueue]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -100,6 +137,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("offline", handleOffline);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
       }
       if (wsRef.current) {
         wsRef.current.close();

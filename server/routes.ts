@@ -40,13 +40,38 @@ export async function registerRoutes(
   // WebSocket server setup on /ws path
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
+  // Heartbeat to keep connections alive
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if ((ws as any).isAlive === false) {
+        return ws.terminate();
+      }
+      (ws as any).isAlive = false;
+      ws.ping();
+    });
+  }, 30000); // Every 30 seconds
+
+  wss.on("close", () => {
+    clearInterval(heartbeatInterval);
+  });
+
   wss.on("connection", (ws) => {
+    (ws as any).isAlive = true;
     clients.add(ws);
     console.log("WebSocket client connected. Total clients:", clients.size);
+
+    ws.on("pong", () => {
+      (ws as any).isAlive = true;
+    });
 
     ws.on("message", (data) => {
       try {
         const message = JSON.parse(data.toString());
+        // Handle ping messages from client
+        if (message.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong" }));
+          return;
+        }
         // Broadcast to all other clients
         broadcast(message, ws);
       } catch (e) {
