@@ -2,6 +2,18 @@ import { pgTable, text, integer, timestamp, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Suppliers table
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  contact: text("contact"),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Stock Items table
 export const stockItems = pgTable("stock_items", {
   id: serial("id").primaryKey(),
@@ -12,12 +24,15 @@ export const stockItems = pgTable("stock_items", {
   threshold: integer("threshold").notNull().default(0),
   unit: text("unit").notNull().default("unités"),
   location: text("location"),
+  supplierId: integer("supplier_id").references(() => suppliers.id),
   lastUpdated: timestamp("last_updated").notNull().defaultNow(),
 });
 
 // Types
 export type StockItem = typeof stockItems.$inferSelect;
 export type InsertStockItem = typeof stockItems.$inferInsert;
+export type Supplier = typeof suppliers.$inferSelect;
+export type InsertSupplier = typeof suppliers.$inferInsert;
 
 // Zod schemas
 export const insertStockItemSchema = createInsertSchema(stockItems).omit({ 
@@ -30,6 +45,17 @@ export const updateStockItemSchema = createInsertSchema(stockItems).partial().ex
 });
 
 export type UpdateStockItem = z.infer<typeof updateStockItemSchema>;
+
+export const insertSupplierSchema = createInsertSchema(suppliers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const updateSupplierSchema = createInsertSchema(suppliers).partial().extend({
+  id: z.number(),
+});
+
+export type UpdateSupplier = z.infer<typeof updateSupplierSchema>;
 
 // Stock Arrival schema for batch updates
 export const stockArrivalSchema = z.object({

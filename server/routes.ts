@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { insertStockItemSchema, updateStockItemSchema } from "@shared/schema";
+import { insertStockItemSchema, updateStockItemSchema, insertSupplierSchema, updateSupplierSchema } from "@shared/schema";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 
@@ -327,6 +327,95 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error creating backup:", error);
       res.status(500).json({ error: "Erreur lors de la création de la sauvegarde" });
+    }
+  });
+
+  // ========== SUPPLIER ROUTES ==========
+
+  // Get all suppliers
+  app.get("/api/suppliers", async (_req, res) => {
+    try {
+      const allSuppliers = await storage.getAllSuppliers();
+      res.json(allSuppliers);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération des fournisseurs" });
+    }
+  });
+
+  // Get single supplier
+  app.get("/api/suppliers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID invalide" });
+      }
+      const supplier = await storage.getSupplierById(id);
+      if (!supplier) {
+        return res.status(404).json({ error: "Fournisseur non trouvé" });
+      }
+      res.json(supplier);
+    } catch (error) {
+      console.error("Error fetching supplier:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération du fournisseur" });
+    }
+  });
+
+  // Create supplier
+  app.post("/api/suppliers", async (req, res) => {
+    try {
+      const validatedData = insertSupplierSchema.parse(req.body);
+      const newSupplier = await storage.createSupplier(validatedData);
+      res.status(201).json(newSupplier);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Données invalides", details: error.errors });
+      }
+      console.error("Error creating supplier:", error);
+      res.status(500).json({ error: "Erreur lors de la création du fournisseur" });
+    }
+  });
+
+  // Update supplier
+  app.put("/api/suppliers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID invalide" });
+      }
+      const updateData = { ...req.body, id };
+      const validatedData = updateSupplierSchema.parse(updateData);
+      const updatedSupplier = await storage.updateSupplier(validatedData);
+      
+      if (!updatedSupplier) {
+        return res.status(404).json({ error: "Fournisseur non trouvé" });
+      }
+      
+      res.json(updatedSupplier);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Données invalides", details: error.errors });
+      }
+      console.error("Error updating supplier:", error);
+      res.status(500).json({ error: "Erreur lors de la mise à jour du fournisseur" });
+    }
+  });
+
+  // Delete supplier
+  app.delete("/api/suppliers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "ID invalide" });
+      }
+      const deleted = await storage.deleteSupplier(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Fournisseur non trouvé" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting supplier:", error);
+      res.status(500).json({ error: "Erreur lors de la suppression du fournisseur" });
     }
   });
 

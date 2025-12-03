@@ -1,6 +1,15 @@
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { stockItems, type StockItem, type InsertStockItem, type UpdateStockItem } from "@shared/schema";
+import { 
+  stockItems, 
+  suppliers,
+  type StockItem, 
+  type InsertStockItem, 
+  type UpdateStockItem,
+  type Supplier,
+  type InsertSupplier,
+  type UpdateSupplier
+} from "@shared/schema";
 
 export interface IStorage {
   getAllStock(): Promise<StockItem[]>;
@@ -10,7 +19,14 @@ export interface IStorage {
   deleteStock(id: number): Promise<boolean>;
   applyArrivals(arrivals: { itemId: number; quantity: number }[]): Promise<StockItem[]>;
   importStock(items: InsertStockItem[]): Promise<{ imported: number }>;
-  getBackupData(): Promise<{ stock: StockItem[]; timestamp: string }>;
+  getBackupData(): Promise<{ stock: StockItem[]; suppliers: Supplier[]; timestamp: string }>;
+  
+  // Supplier methods
+  getAllSuppliers(): Promise<Supplier[]>;
+  getSupplierById(id: number): Promise<Supplier | undefined>;
+  createSupplier(supplier: InsertSupplier): Promise<Supplier>;
+  updateSupplier(supplier: UpdateSupplier): Promise<Supplier | undefined>;
+  deleteSupplier(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -111,11 +127,46 @@ export class DatabaseStorage implements IStorage {
     return { imported };
   }
 
-  async getBackupData(): Promise<{ stock: StockItem[]; timestamp: string }> {
+  async getBackupData(): Promise<{ stock: StockItem[]; suppliers: Supplier[]; timestamp: string }> {
     return {
       stock: await this.getAllStock(),
+      suppliers: await this.getAllSuppliers(),
       timestamp: new Date().toISOString(),
     };
+  }
+
+  // Supplier methods
+  async getAllSuppliers(): Promise<Supplier[]> {
+    return await db.select().from(suppliers).orderBy(suppliers.name);
+  }
+
+  async getSupplierById(id: number): Promise<Supplier | undefined> {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
+    return supplier;
+  }
+
+  async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
+    const [newSupplier] = await db.insert(suppliers).values({
+      ...supplier,
+      createdAt: new Date(),
+    }).returning();
+    return newSupplier;
+  }
+
+  async updateSupplier(supplier: UpdateSupplier): Promise<Supplier | undefined> {
+    const [updatedSupplier] = await db
+      .update(suppliers)
+      .set(supplier)
+      .where(eq(suppliers.id, supplier.id))
+      .returning();
+    return updatedSupplier;
+  }
+
+  async deleteSupplier(id: number): Promise<boolean> {
+    // First, remove supplier reference from stock items
+    await db.update(stockItems).set({ supplierId: null }).where(eq(stockItems.supplierId, id));
+    const result = await db.delete(suppliers).where(eq(suppliers.id, id)).returning();
+    return result.length > 0;
   }
 }
 
